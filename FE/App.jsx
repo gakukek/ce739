@@ -1,17 +1,20 @@
 import React, { useState } from "react";
-import AddAquariumForm from "./AddAquariumForm";
-import AquariumList from "./AquariumList";
+import AquariumList from "./components/AquariumList";
+import AddAquariumForm from "./components/AddAquariumForm";
 
-export default function App() {
-  const [refresh, setRefresh] = useState(false);
+function App() {
+  const [updateTrigger, setUpdateTrigger] = useState(0);
 
-  const reloadList = () => setRefresh(!refresh);
+  const handleAdded = () => {
+    setUpdateTrigger((prev) => prev + 1); // memicu refresh list
+  };
 
   return (
-    <div style={{ padding: "2rem", fontFamily: "Arial" }}>
-      <h1>🐠 Smart Aquarium Feeder Dashboard</h1>
-      <AddAquariumForm onAdded={reloadList} />
-      <AquariumList key={refresh} />
+    <div className="max-w-lg mx-auto mt-8">
+      <AddAquariumForm onAdded={handleAdded} />
+      <AquariumList key={updateTrigger} />
     </div>
   );
 }
+
+export default App;

@@ -1,66 +1,38 @@
 import React, { useEffect, useState } from "react";
-import { fetchAquariums, deleteAquarium } from "./api";
 
-export default function AquariumList() {
+const API_BASE = "https://aquascape.onrender.com";
+
+function AquariumList() {
   const [aquariums, setAquariums] = useState([]);
-  const [loading, setLoading] = useState(true);
 
-  const loadData = async () => {
-    setLoading(true);
-    const data = await fetchAquariums();
-    setAquariums(data);
-    setLoading(false);
-  };
-
-  const handleDelete = async (id) => {
-    if (window.confirm("Yakin ingin menghapus data ini?")) {
-      await deleteAquarium(id);
-      loadData();
+  async function fetchAquariums() {
+    try {
+      const res = await fetch(`${API_BASE}/aquariums`);
+      const data = await res.json();
+      // INI MASIH AQUARIUM USER ID 1
+      setAquariums(Array.isArray(data) ? data.filter(a => a.user_id === 1) : []);
+    } catch (err) {
+      console.error("Failed to fetch aquariums", err);
     }
-  };
+  }
 
   useEffect(() => {
-    loadData();
+    fetchAquariums();
   }, []);
 
-  if (loading) return <p>Loading data aquarium...</p>;
-
   return (
-    <div>
-      <h3>📦 Daftar Aquarium</h3>
-      {aquariums.length === 0 ? (
-        <p>Tidak ada data aquarium.</p>
-      ) : (
-        <table border="1" cellPadding="8" style={{ width: "100%" }}>
-          <thead style={{ backgroundColor: "#f0f0f0" }}>
-            <tr>
-              <th>ID</th>
-              <th>Nama</th>
-              <th>Volume (L)</th>
-              <th>Feeding Time</th>
-              <th>Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {aquariums.map((a) => (
-              <tr key={a.id}>
-                <td>{a.id}</td>
-                <td>{a.name}</td>
-                <td>{a.volume}</td>
-                <td>{a.feeding_time || "-"}</td>
-                <td>
-                  <button
-                    onClick={() => handleDelete(a.id)}
-                    style={{ backgroundColor: "red", color: "white" }}
-                  >
-                    Hapus
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+    <div className="p-4">
+      <h2 className="text-xl font-bold mb-2">Daftar Aquarium</h2>
+      <ul className="space-y-2">
+        {aquariums.map((aq) => (
+          <li key={aq.id} className="border rounded p-2">
+            <p><strong>{aq.name}</strong> — {aq.size_litres ?? 0} L</p>
+            <p className="text-sm text-gray-500">User ID: {aq.user_id}</p>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
+
+export default AquariumList;
