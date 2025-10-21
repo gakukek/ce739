@@ -1,13 +1,23 @@
 import React, { useEffect, useState } from "react";
 
+const API_BASE = "https://aquascape.onrender.com";
+
 function AquariumList() {
   const [aquariums, setAquariums] = useState([]);
 
+  async function fetchAquariums() {
+    try {
+      const res = await fetch(`${API_BASE}/aquariums`);
+      const data = await res.json();
+      // INI MASIH AQUARIUM USER ID 1
+      setAquariums(Array.isArray(data) ? data.filter(a => a.user_id === 1) : []);
+    } catch (err) {
+      console.error("Failed to fetch aquariums", err);
+    }
+  }
+
   useEffect(() => {
-    fetch("http://localhost:8000/aquariums")
-      .then((res) => res.json())
-      .then((data) => setAquariums(data))
-      .catch((err) => console.error("Fetch error:", err));
+    fetchAquariums();
   }, []);
 
   return (
