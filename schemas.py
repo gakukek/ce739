@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
 import datetime
 
@@ -105,7 +105,8 @@ class AlertOut(BaseModel):
 class UserCreate(BaseModel):
     username: str
     email: Optional[str] = None
-    password: str
+    password: str = Field(..., min_length=8, max_length=72)
+
 
 class UserOut(BaseModel):
     id: int
@@ -119,4 +120,4 @@ class UserOut(BaseModel):
 class UserUpdate(BaseModel):
     username: Optional[str] = None
     email: Optional[str] = None
-    password: Optional[str] = None
+    password: Optional[str] = Field(None, min_length=8, max_length=72)

@@ -32,7 +32,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# use Argon2 to avoid bcrypt 72-byte limit
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 # USER endpoints
 @app.post("/users", response_model=UserOut)
