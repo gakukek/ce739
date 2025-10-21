@@ -101,3 +101,22 @@ class AlertOut(BaseModel):
 
     class Config:
         orm_mode = True
+
+class UserCreate(BaseModel):
+    username: str
+    email: Optional[str] = None
+    password: str
+
+class UserOut(BaseModel):
+    id: int
+    username: str
+    email: Optional[str]
+    created_at: Optional[datetime.datetime]
+
+    class Config:
+        orm_mode = True
+
+class UserUpdate(BaseModel):
+    username: Optional[str] = None
+    email: Optional[str] = None
+    password: Optional[str] = None

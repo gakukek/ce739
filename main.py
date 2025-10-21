@@ -1,10 +1,15 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from passlib.context import CryptContext
+from sqlalchemy.exc import IntegrityError
 
 from database import get_db, engine, Base
-from models import Aquarium, SensorData, FeedingLog, Schedule, Alert
+from models import User, Aquarium, SensorData, FeedingLog, Schedule, Alert
 from schemas import (
+    UserCreate,
+    UserOut,
+    UserUpdate,
     AquariumCreate,
     AquariumOut,
     SensorDataCreate,
@@ -26,6 +31,61 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(lifespan=lifespan)
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# USER endpoints
+@app.post("/users", response_model=UserOut)
+async def create_user(payload: UserCreate, db: AsyncSession = Depends(get_db)):
+    hashed = pwd_context.hash(payload.password)
+    user = User(username=payload.username, email=payload.email, password_hash=hashed)
+    db.add(user)
+    try:
+        await db.commit()
+        await db.refresh(user)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail="username or email already exists")
+    return user
+
+@app.get("/users", response_model=list[UserOut])
+async def list_users(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User))
+    return result.scalars().all()
+
+@app.get("/users/{user_id}", response_model=UserOut)
+async def get_user(user_id: int, db: AsyncSession = Depends(get_db)):
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+@app.put("/users/{user_id}", response_model=UserOut)
+async def update_user(user_id: int, payload: UserUpdate, db: AsyncSession = Depends(get_db)):
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    data = payload.dict(exclude_none=True)
+    if "password" in data:
+        user.password_hash = pwd_context.hash(data.pop("password"))
+    for k, v in data.items():
+        setattr(user, k, v)
+    try:
+        await db.commit()
+        await db.refresh(user)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail="username or email already exists")
+    return user
+
+@app.delete("/users/{user_id}")
+async def delete_user(user_id: int, db: AsyncSession = Depends(get_db)):
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    await db.delete(user)
+    await db.commit()
+    return {"ok": True}
 
 # AQUARIUMS
 @app.post("/aquariums", response_model=AquariumOut)
