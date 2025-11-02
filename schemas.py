@@ -3,12 +3,12 @@ from typing import Optional, List
 import datetime
 
 class AquariumCreate(BaseModel):
-    user_id: int
     name: str
     size_litres: Optional[float] = None
     device_uid: str
     feeding_volume_grams: Optional[float] = None
     feeding_period_hours: Optional[int] = None
+
 
 class AquariumOut(BaseModel):
     id: int
@@ -23,6 +23,7 @@ class AquariumOut(BaseModel):
 
     class Config:
         orm_mode = True
+
 
 class SensorDataCreate(BaseModel):
     aquarium_id: int
@@ -105,7 +106,8 @@ class AlertOut(BaseModel):
 class UserCreate(BaseModel):
     username: str
     email: Optional[str] = None
-    password: Optional[str] = Field(None, min_length=8, max_length=72)
+    clerk_user_id: str  # new
+
 
 class UserOut(BaseModel):
     id: int
@@ -119,4 +121,4 @@ class UserOut(BaseModel):
 class UserUpdate(BaseModel):
     username: Optional[str] = None
     email: Optional[str] = None
-    password: Optional[str] = Field(None, min_length=8, max_length=72)
+
