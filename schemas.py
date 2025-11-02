@@ -105,8 +105,7 @@ class AlertOut(BaseModel):
 class UserCreate(BaseModel):
     username: str
     email: Optional[str] = None
-    password: str = Field(..., min_length=8, max_length=72)
-
+    password: Optional[str] = Field(None, min_length=8, max_length=72)
 
 class UserOut(BaseModel):
     id: int
