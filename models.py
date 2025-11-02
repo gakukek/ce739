@@ -20,8 +20,9 @@ class User(Base):
     id = Column(BigInteger, primary_key=True, index=True)
     username = Column(String(50), unique=True, nullable=False)
     email = Column(String(255), unique=True)
-    password_hash = Column(String(255), nullable=False)
+    password_hash = Column(String(255), nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    clerk_id = Column(String, unique=True, index=True, nullable=False)
 
     aquariums = relationship("Aquarium", back_populates="owner", cascade="all, delete-orphan")
 
