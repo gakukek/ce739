@@ -1,43 +1,52 @@
-import os
-from fastapi import Header, HTTPException, Depends
-from clerk_backend_api import Clerk
-from clerk_backend_api.security import authenticate_request
-from clerk_backend_api.security.types import AuthenticateRequestOptions
-from dotenv import load_dotenv
+# auth.py
+from fastapi import Depends, Header, HTTPException
+from clerk_backend_api import Clerk, AuthenticateRequestOptions, authenticate_request
+from sqlalchemy.future import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-load_dotenv()
+from database import get_db
+from models import User
 
-CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY")
-if not CLERK_SECRET_KEY:
-    raise RuntimeError("CLERK_SECRET_KEY environment variable is required")
+clerk = Clerk(api_key="YOUR_CLERK_SECRET_KEY")
 
-clerk = Clerk(bearer_auth=CLERK_SECRET_KEY)
-
-async def get_current_user(authorization: str = Header(None)) -> str:
+async def get_current_user(
+    authorization: str = Header(None),
+    db: AsyncSession = Depends(get_db)
+) -> int:
     """
-    Validates Clerk session token using clerk-backend-api SDK.
-    Returns the Clerk user_id if valid.
+    Validates Clerk token, ensures user exists in DB,
+    returns internal DB user.id (int).
     """
+
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization")
 
     token = authorization.split(" ")[1]
 
     try:
-        auth_opts = AuthenticateRequestOptions(
-            jwt_key=None,  # uses Clerk's default JWKS
-            authorized_parties=None
-        )
         auth_state = authenticate_request(
-            clerk, 
+            clerk,
             token=token,
-            options=auth_opts
+            options=AuthenticateRequestOptions(jwt_key=None)
         )
-        if not auth_state.is_signed_in:
-            raise HTTPException(status_code=401, detail="User is not signed in")
 
-        user_id = auth_state.user_id
-        return user_id
+        if not auth_state.is_signed_in:
+            raise HTTPException(status_code=401, detail="User not signed in")
+
+        clerk_user_id = auth_state.user_id
+
+        # Find local user
+        result = await db.execute(select(User).where(User.clerk_user_id == clerk_user_id))
+        user = result.scalar_one_or_none()
+
+        # Auto-create local user on first login
+        if not user:
+            user = User(clerk_user_id=clerk_user_id)
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+
+        return user.id  # internal DB id
 
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Invalid Clerk token: {e}")

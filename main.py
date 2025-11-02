@@ -45,43 +45,45 @@ async def sync_user(
     user_id: str = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    existing = await db.execute(select(User).where(User.clerk_id == user_id))
+    existing = await db.execute(select(User).where(User.clerk_user_id == user_id))
     user = existing.scalars().first()
 
     if not user:
-        user = User(clerk_id=user_id)
+        user = User(clerk_user_id=user_id)
         db.add(user)
         await db.commit()
         await db.refresh(user)
 
-    return {"status": "ok", "clerk_id": user_id}
+    return {"status": "ok", "clerk_user_id": user_id}
 
 @app.get("/me", response_model=UserOut)
 async def get_me(
     user_id: str = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(select(User).where(User.clerk_id == user_id))
+    result = await db.execute(select(User).where(User.clerk_user_id == user_id))
     user = result.scalars().first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found in DB; call /sync-user first")
     return user
 
 # ------------------- HELPER: Ownership Enforcement -------------------
-async def assert_aquarium_owner(db: AsyncSession, aq_id: int, user_id: str):
+async def assert_aquarium_owner(db: AsyncSession, aq_id: int, user_id: int):
     result = await db.execute(select(Aquarium).where(Aquarium.id == aq_id))
     aq = result.scalars().first()
+
     if not aq:
         raise HTTPException(status_code=404, detail="Aquarium not found")
     if aq.user_id != user_id:
         raise HTTPException(status_code=403, detail="Not allowed")
+
     return aq
 
 # ------------------- AQUARIUMS -------------------
 @app.post("/aquariums", response_model=AquariumOut)
 async def create_aquarium(
     aquarium: AquariumCreate,
-    user_id: str = Depends(get_current_user),
+    user_id: int = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     new_aq = Aquarium(**aquarium.dict(exclude_none=True), user_id=user_id)
@@ -93,10 +95,11 @@ async def create_aquarium(
 @app.get("/aquariums", response_model=list[AquariumOut])
 async def get_aquariums(
     db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user)
+    user_id: int = Depends(get_current_user)
 ):
     result = await db.execute(select(Aquarium).where(Aquarium.user_id == user_id))
     return result.scalars().all()
+
 
 @app.get("/aquariums/{aq_id}", response_model=AquariumOut)
 async def get_aquarium(
