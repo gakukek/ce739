@@ -57,11 +57,33 @@ async def sync_user(
     db: AsyncSession = Depends(get_db),
     authorization: str = Header(...)
 ):
+    # Allow decoding token WITHOUT signature validation to extract fields
     token = authorization.split(" ")[1]
     decoded = jwt.decode(token, options={"verify_signature": False})
 
-    email = decoded.get("email")
-    username = decoded.get("username") or decoded.get("name") or email.split("@")[0]
+    # Safely extract fields
+    email = (
+        decoded.get("email")
+        or decoded.get("primary_email")
+        or decoded.get("email_address")
+        or decoded.get("email_addresses", [{}])[0].get("email_address")
+        or None
+    )
+
+    # Build a safe fallback username
+    base_name = None
+    if email:
+        try:
+            base_name = email.split("@")[0]
+        except Exception:
+            base_name = None
+
+    username = (
+        decoded.get("username")
+        or decoded.get("name")
+        or base_name
+        or f"user_{clerk_id[:6]}"
+    )
 
     result = await db.execute(select(User).where(User.clerk_user_id == clerk_id))
     user = result.scalars().first()
@@ -75,7 +97,8 @@ async def sync_user(
         await db.commit()
         await db.refresh(user)
 
-    return {"status": "ok", "clerk_id": clerk_id}
+    return {"status": "ok", "clerk_id": clerk_id, "username": username}
+
 
 @app.get("/me", response_model=UserOut)
 async def get_me(
