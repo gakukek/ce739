@@ -12,7 +12,6 @@ class AquariumCreate(BaseModel):
 
 class AquariumOut(BaseModel):
     id: int
-    user_id: str
     name: str
     size_litres: Optional[float]
     device_uid: str
