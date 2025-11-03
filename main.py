@@ -10,6 +10,7 @@ from schemas import (
     UserOut, AquariumCreate, AquariumOut, SensorDataCreate, SensorDataOut,
     FeedingLogCreate, FeedingLogOut, ScheduleCreate, ScheduleOut, AlertCreate, AlertOut
 )
+import os
 
 # ------------- Clerk Auth -------------
 from auth import get_current_user  # returns clerk_user_id
@@ -23,8 +24,12 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 # ------------- CORS -------------
-import os
-_origins = os.getenv("CORS_ORIGINS","http://localhost:5173,http://127.0.0.1:5173").split(",")
+
+# ✅ Add your production frontend URL
+_origins = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:5173,http://127.0.0.1:5173,https://your-frontend-domain.vercel.app"
+).split(",")
 
 app.add_middleware(
     CORSMiddleware,
@@ -32,7 +37,16 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],  # ✅ Add this
 )
+
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "ok",
+        "cors_origins": _origins,
+        "jwks_url": "configured"
+    }
 
 # ------------- User Sync -------------
 @app.post("/sync-user")
