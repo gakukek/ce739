@@ -1,8 +1,9 @@
 from fastapi import Header, HTTPException
-from clerk_backend_api import Clerk, AuthenticateRequestOptions, ClerkError
+from clerk_backend_api import Clerk
 import os
 
-clerk = Clerk()
+# Initialize Clerk with secret key
+clerk = Clerk(bearer_auth=os.getenv("CLERK_SECRET_KEY"))
 
 async def get_current_user(authorization: str = Header(None)) -> str:
     if not authorization or not authorization.startswith("Bearer "):
@@ -11,15 +12,14 @@ async def get_current_user(authorization: str = Header(None)) -> str:
     token = authorization.split(" ")[1]
 
     try:
-        auth_state = clerk.authenticate_request(
-            token=token,
-            options=AuthenticateRequestOptions()
-        )
+        # Verify the session token
+        jwt_claims = clerk.verify_token(token)
+        
+        if not jwt_claims or not jwt_claims.get("sub"):
+            raise HTTPException(status_code=401, detail="Invalid token")
 
-        if not auth_state.is_authenticated:
-            raise HTTPException(status_code=401, detail="Invalid or expired token")
+        return jwt_claims["sub"]  # This is the user_id
 
-        return auth_state.user_id
-
-    except ClerkError as e:
-        raise HTTPException(status_code=401, detail=f"Clerk auth failed: {str(e)}")
+    except Exception as e:
+        print(f"❌ Auth error: {e}")  # For debugging
+        raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
