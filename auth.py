@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
 from models import User
 
-clerk = Clerk(api_key="YOUR_CLERK_SECRET_KEY")
+clerk = Clerk()
 
 async def get_current_user(
     authorization: str = Header(None),
