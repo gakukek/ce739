@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
+import jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from contextlib import asynccontextmanager
@@ -26,10 +27,11 @@ app = FastAPI(lifespan=lifespan)
 # ------------- CORS -------------
 
 # ✅ Add your production frontend URL
-_origins = os.getenv(
-    "CORS_ORIGINS",
-    "http://localhost:5173,http://127.0.0.1:5173,https://your-frontend-domain.vercel.app"
-).split(",")
+_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://aquascape.onrender.com",
+]
 
 app.add_middleware(
     CORSMiddleware,
@@ -52,13 +54,23 @@ async def health_check():
 @app.post("/sync-user")
 async def sync_user(
     clerk_id: str = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    authorization: str = Header(...)
 ):
+    token = authorization.split(" ")[1]
+    decoded = jwt.decode(token, options={"verify_signature": False})
+
+    email = decoded.get("email")
+    username = decoded.get("username") or decoded.get("name") or email.split("@")[0]
+
     result = await db.execute(select(User).where(User.clerk_user_id == clerk_id))
     user = result.scalars().first()
 
     if not user:
-        user = User(clerk_user_id=clerk_id)
+        user = User(
+            clerk_user_id=clerk_id,
+            username=username
+        )
         db.add(user)
         await db.commit()
         await db.refresh(user)

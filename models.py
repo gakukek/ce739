@@ -20,6 +20,7 @@ class User(Base):
 
     id = Column(BigInteger, primary_key=True, index=True)
     clerk_user_id = Column(String, unique=True, nullable=False, index=True)
+    username = Column(String(100), unique=True, nullable=False)
 
     aquariums = relationship("Aquarium", back_populates="owner")
 
