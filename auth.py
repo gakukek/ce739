@@ -2,7 +2,7 @@ from fastapi import Header, HTTPException
 from clerk_backend_api import Clerk, AuthenticateRequestOptions, ClerkError
 import os
 
-clerk = Clerk(secret_key=os.getenv("CLERK_SECRET_KEY"))
+clerk = Clerk()
 
 async def get_current_user(authorization: str = Header(None)) -> str:
     if not authorization or not authorization.startswith("Bearer "):
