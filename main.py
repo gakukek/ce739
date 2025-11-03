@@ -47,6 +47,7 @@ async def sync_user(
         user = User(clerk_user_id=clerk_id)
         db.add(user)
         await db.commit()
+        await db.refresh(user)
 
     return {"status": "ok", "clerk_id": clerk_id}
 
