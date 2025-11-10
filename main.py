@@ -59,6 +59,9 @@ async def sync_user(
     db: AsyncSession = Depends(get_db),
     authorization: str = Header(...)
 ):
+    from sqlalchemy.exc import IntegrityError
+    import uuid
+    
     try:
         # Allow decoding token WITHOUT signature validation to extract fields
         token = authorization.split(" ")[1]
@@ -105,9 +108,9 @@ async def sync_user(
             except Exception:
                 pass
         
-        # Final fallback
+        # Final fallback - use full clerk_id to avoid collisions
         if not username:
-            username = f"user_{clerk_id[:8]}"
+            username = f"user_{clerk_id}"
 
         print(f"DEBUG - Extracted email: {email}, username: {username}")
 
@@ -116,26 +119,42 @@ async def sync_user(
         user = result.scalars().first()
 
         if not user:
-            user = User(
-                clerk_user_id=clerk_id,
-                username=username
-            )
-            db.add(user)
-            await db.commit()
-            await db.refresh(user)
-            print(f"DEBUG - Created new user with id: {user.id}")
+            # Try to create user, handle username collisions
+            max_attempts = 5
+            for attempt in range(max_attempts):
+                try:
+                    # Add random suffix if this is a retry
+                    current_username = username if attempt == 0 else f"{username}_{uuid.uuid4().hex[:6]}"
+                    
+                    user = User(
+                        clerk_user_id=clerk_id,
+                        username=current_username
+                    )
+                    db.add(user)
+                    await db.commit()
+                    await db.refresh(user)
+                    print(f"DEBUG - Created new user with id: {user.id}, username: {current_username}")
+                    break
+                except IntegrityError as ie:
+                    await db.rollback()
+                    if "users_username_key" in str(ie) and attempt < max_attempts - 1:
+                        print(f"DEBUG - Username collision on attempt {attempt + 1}, retrying...")
+                        continue
+                    else:
+                        raise
         else:
             print(f"DEBUG - User already exists with id: {user.id}")
 
         return {
             "status": "ok", 
             "clerk_id": clerk_id, 
-            "username": username,
+            "username": user.username,
             "user_id": user.id,
             "email": email
         }
     
     except Exception as e:
+        await db.rollback()
         print(f"ERROR in sync_user: {str(e)}")
         print(f"ERROR type: {type(e)}")
         import traceback
