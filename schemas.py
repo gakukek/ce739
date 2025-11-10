@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List
 import datetime
 
@@ -19,9 +19,7 @@ class AquariumOut(BaseModel):
     feeding_period_hours: Optional[int]
     active_since: Optional[datetime.datetime]
     created_at: Optional[datetime.datetime]
-
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True) 
 
 
 class SensorDataCreate(BaseModel):
