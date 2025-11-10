@@ -51,53 +51,96 @@ async def health_check():
     }
 
 # ------------- User Sync -------------
+# Replace your /sync-user endpoint with this improved version:
+
 @app.post("/sync-user")
 async def sync_user(
     clerk_id: str = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     authorization: str = Header(...)
 ):
-    # Allow decoding token WITHOUT signature validation to extract fields
-    token = authorization.split(" ")[1]
-    decoded = jwt.decode(token, options={"verify_signature": False})
+    try:
+        # Allow decoding token WITHOUT signature validation to extract fields
+        token = authorization.split(" ")[1]
+        decoded = jwt.decode(token, options={"verify_signature": False})
+        
+        # Debug: Log the decoded token structure (remove in production)
+        print("DEBUG - Decoded token keys:", decoded.keys())
+        print("DEBUG - Full decoded token:", decoded)
 
-    # Safely extract fields
-    email = (
-        decoded.get("email")
-        or decoded.get("primary_email")
-        or decoded.get("email_address")
-        or decoded.get("email_addresses", [{}])[0].get("email_address")
-        or None
-    )
+        # More comprehensive email extraction
+        email = None
+        
+        # Try different possible email fields
+        if "email" in decoded:
+            email = decoded["email"]
+        elif "primary_email" in decoded:
+            email = decoded["primary_email"]
+        elif "email_address" in decoded:
+            email = decoded["email_address"]
+        elif "email_addresses" in decoded and decoded["email_addresses"]:
+            # Handle array of email objects
+            email_arr = decoded["email_addresses"]
+            if isinstance(email_arr, list) and len(email_arr) > 0:
+                if isinstance(email_arr[0], dict):
+                    email = email_arr[0].get("email_address")
+                elif isinstance(email_arr[0], str):
+                    email = email_arr[0]
 
-    # Build a safe fallback username
-    base_name = None
-    if email:
-        try:
-            base_name = email.split("@")[0]
-        except Exception:
-            base_name = None
+        # Build a safe fallback username
+        username = None
+        
+        # Try to get username from various fields
+        if "username" in decoded and decoded["username"]:
+            username = decoded["username"]
+        elif "name" in decoded and decoded["name"]:
+            username = decoded["name"]
+        elif "given_name" in decoded and decoded["given_name"]:
+            username = decoded["given_name"]
+        elif "first_name" in decoded and decoded["first_name"]:
+            username = decoded["first_name"]
+        elif email:
+            try:
+                username = email.split("@")[0]
+            except Exception:
+                pass
+        
+        # Final fallback
+        if not username:
+            username = f"user_{clerk_id[:8]}"
 
-    username = (
-        decoded.get("username")
-        or decoded.get("name")
-        or base_name
-        or f"user_{clerk_id[:6]}"
-    )
+        print(f"DEBUG - Extracted email: {email}, username: {username}")
 
-    result = await db.execute(select(User).where(User.clerk_user_id == clerk_id))
-    user = result.scalars().first()
+        # Check if user already exists
+        result = await db.execute(select(User).where(User.clerk_user_id == clerk_id))
+        user = result.scalars().first()
 
-    if not user:
-        user = User(
-            clerk_user_id=clerk_id,
-            username=username
-        )
-        db.add(user)
-        await db.commit()
-        await db.refresh(user)
+        if not user:
+            user = User(
+                clerk_user_id=clerk_id,
+                username=username
+            )
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+            print(f"DEBUG - Created new user with id: {user.id}")
+        else:
+            print(f"DEBUG - User already exists with id: {user.id}")
 
-    return {"status": "ok", "clerk_id": clerk_id, "username": username}
+        return {
+            "status": "ok", 
+            "clerk_id": clerk_id, 
+            "username": username,
+            "user_id": user.id,
+            "email": email
+        }
+    
+    except Exception as e:
+        print(f"ERROR in sync_user: {str(e)}")
+        print(f"ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, f"Sync user failed: {str(e)}")
 
 
 @app.get("/me", response_model=UserOut)
