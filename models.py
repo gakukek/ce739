@@ -43,7 +43,7 @@ class Aquarium(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
-    user = relationship("User", back_populates="aquariums")
+    owner = relationship("User", back_populates="aquariums")
     sensor_data = relationship("SensorData", back_populates="aquarium", cascade="all, delete-orphan")
     feeding_logs = relationship("FeedingLog", back_populates="aquarium", cascade="all, delete-orphan")
     schedules = relationship("Schedule", back_populates="aquarium", cascade="all, delete-orphan")
