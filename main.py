@@ -251,9 +251,48 @@ async def list_aquariums(
     clerk_id: str = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    user = await get_local_user(db, clerk_id)
-    result = await db.execute(select(Aquarium).where(Aquarium.user_id == user.id))
-    return result.scalars().all()
+    try:
+        user = await get_local_user(db, clerk_id)
+        print(f"📊 Fetching aquariums for user_id={user.id}")
+        
+        result = await db.execute(select(Aquarium).where(Aquarium.user_id == user.id))
+        aquariums = result.scalars().all()
+        
+        print(f"📊 Found {len(aquariums)} aquariums")
+        
+        # Debug: Print each aquarium's data
+        for i, aq in enumerate(aquariums):
+            print(f"  Aquarium {i+1}: id={aq.id}, name={aq.name}, device_uid={aq.device_uid}, user_id={aq.user_id}")
+            print(f"    Fields: size_litres={aq.size_litres}, feeding_volume_grams={aq.feeding_volume_grams}")
+            print(f"    feeding_period_hours={aq.feeding_period_hours}, active_since={aq.active_since}")
+        
+        # Try to serialize each one individually to find the problematic record
+        from pydantic import ValidationError
+        validated_aquariums = []
+        for aq in aquariums:
+            try:
+                validated = AquariumOut.from_orm(aq)
+                validated_aquariums.append(validated)
+                print(f"  ✅ Aquarium {aq.id} serialized successfully")
+            except ValidationError as ve:
+                print(f"  ❌ Validation error for aquarium {aq.id}: {ve}")
+                print(f"  ❌ Problematic data: {aq.__dict__}")
+                raise HTTPException(500, f"Data validation error for aquarium {aq.id}: {str(ve)}")
+            except Exception as e:
+                print(f"  ❌ Serialization error for aquarium {aq.id}: {type(e).__name__} - {str(e)}")
+                print(f"  ❌ Aquarium data: {aq.__dict__}")
+                raise HTTPException(500, f"Serialization error for aquarium {aq.id}: {str(e)}")
+        
+        return validated_aquariums
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Unexpected error in list_aquariums: {type(e).__name__}")
+        print(f"❌ Error message: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, f"Failed to fetch aquariums: {str(e)}")
 
 @app.get("/aquariums/{aq_id}", response_model=AquariumOut)
 async def get_aquarium(aq_id: int, clerk_id: str = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
