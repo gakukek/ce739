@@ -186,10 +186,18 @@ async def get_me(
 
 # ------------- Helper -------------
 async def get_local_user(db, clerk_id):
+    print(f"🔍 Looking up user with clerk_id: {clerk_id}")
     res = await db.execute(select(User).where(User.clerk_user_id == clerk_id))
     user = res.scalars().first()
+    
     if not user:
+        print(f"❌ User not found for clerk_id: {clerk_id}")
+        # Check if user exists with different ID
+        all_users = await db.execute(select(User))
+        print(f"📋 All users in DB: {[u.clerk_user_id for u in all_users.scalars().all()]}")
         raise HTTPException(403, "User not synced; call /sync-user first")
+    
+    print(f"✅ Found user: id={user.id}, username={user.username}")
     return user
 
 async def assert_owner(db, aq_id, clerk_id):
