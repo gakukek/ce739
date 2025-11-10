@@ -198,19 +198,36 @@ async def assert_owner(db, aq_id, clerk_id):
     return aq
 
 # ------------- Aquariums -------------
+
 @app.post("/aquariums", response_model=AquariumOut)
 async def create_aquarium(
     aquarium: AquariumCreate,
     clerk_id: str = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    from sqlalchemy.exc import IntegrityError
+    
     user = await get_local_user(db, clerk_id)
-
-    new_aq = Aquarium(**aquarium.dict(exclude_none=True), user_id=user.id)
-    db.add(new_aq)
-    await db.commit()
-    await db.refresh(new_aq)
-    return new_aq
+    
+    # Convert the Pydantic model to dict
+    aquarium_data = aquarium.dict(exclude_none=True)
+    
+    # Handle device_uid: convert empty string to None
+    if "device_uid" in aquarium_data:
+        if aquarium_data["device_uid"] == "" or aquarium_data["device_uid"] is None:
+            aquarium_data["device_uid"] = None
+    
+    try:
+        new_aq = Aquarium(**aquarium_data, user_id=user.id)
+        db.add(new_aq)
+        await db.commit()
+        await db.refresh(new_aq)
+        return new_aq
+    except IntegrityError as e:
+        await db.rollback()
+        if "device_uid" in str(e):
+            raise HTTPException(400, "Device UID already exists. Please use a unique device UID or leave it empty.")
+        raise HTTPException(400, f"Database error: {str(e)}")
 
 @app.get("/aquariums", response_model=list[AquariumOut])
 async def list_aquariums(

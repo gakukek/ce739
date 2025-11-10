@@ -1,6 +1,8 @@
+import datetime
 from sqlalchemy import (
     Column,
     BigInteger,
+    DateTime,
     String,
     Numeric,
     ForeignKey,
@@ -27,25 +29,25 @@ class User(Base):
 
 class Aquarium(Base):
     __tablename__ = "aquariums"
-
-    id = Column(BigInteger, primary_key=True, index=True)
-    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-
-    name = Column(String(100), nullable=False)
-    size_litres = Column(Numeric(6, 2))
-    device_uid = Column(String(128), unique=True, nullable=False)
-    feeding_volume_grams = Column(Numeric(7, 2))
-    feeding_period_hours = Column(Integer)
-
-    active_since = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-
-    owner = relationship("User", back_populates="aquariums")
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    name = Column(String, nullable=False)
+    size_litres = Column(Numeric(6, 2), nullable=True)
+    
+    device_uid = Column(String, nullable=True, unique=False) 
+    
+    feeding_volume_grams = Column(Numeric(7, 2), nullable=True)
+    feeding_period_hours = Column(Integer, nullable=True)
+    active_since = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", back_populates="aquariums")
     sensor_data = relationship("SensorData", back_populates="aquarium", cascade="all, delete-orphan")
     feeding_logs = relationship("FeedingLog", back_populates="aquarium", cascade="all, delete-orphan")
     schedules = relationship("Schedule", back_populates="aquarium", cascade="all, delete-orphan")
     alerts = relationship("Alert", back_populates="aquarium", cascade="all, delete-orphan")
-
 
 
 class SensorData(Base):
