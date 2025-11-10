@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Header
+from fastapi import FastAPI, Depends, HTTPException, Header, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 import jwt
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,6 +49,15 @@ async def health_check():
         "cors_origins": _origins,
         "jwks_url": "configured"
     }
+
+@app.options("/{rest_of_path:path}")
+async def preflight_handler(request: Request):
+    response = Response(status_code=204)
+    response.headers["Access-Control-Allow-Origin"] = request.headers.get("origin", "*")
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "authorization, content-type"
+    return response
+
 
 # ------------- User Sync -------------
 # Replace your /sync-user endpoint with this improved version:
