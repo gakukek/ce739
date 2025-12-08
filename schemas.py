@@ -5,7 +5,7 @@ import datetime
 class AquariumCreate(BaseModel):
     name: str
     size_litres: Optional[float] = None
-    device_uid: str
+    device_uid: Optional[str] = None
     feeding_volume_grams: Optional[float] = None
     feeding_period_hours: Optional[int] = None
 
@@ -14,7 +14,7 @@ class AquariumOut(BaseModel):
     id: int
     name: str
     size_litres: Optional[float]
-    device_uid: str
+    device_uid: Optional[str]
     feeding_volume_grams: Optional[float]
     feeding_period_hours: Optional[int]
     active_since: Optional[datetime.datetime]

@@ -15,12 +15,16 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
+import database
 from database import Base
+
+# Use Integer primary keys for tests (sqlite in-memory autoincrement), otherwise BigInteger
+ID_TYPE = Integer if getattr(database, "TESTING", False) else BigInteger
 
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(ID_TYPE, primary_key=True, index=True)
     clerk_user_id = Column(String, unique=True, nullable=False, index=True)
     username = Column(String(100), unique=True, nullable=False)
 
@@ -52,8 +56,8 @@ class Aquarium(Base):
 
 class SensorData(Base):
     __tablename__ = "sensor_data"
-    id = Column(BigInteger, primary_key=True, index=True)
-    aquarium_id = Column(BigInteger, ForeignKey("aquariums.id", ondelete="CASCADE"))
+    id = Column(ID_TYPE, primary_key=True, index=True)
+    aquarium_id = Column(ID_TYPE, ForeignKey("aquariums.id", ondelete="CASCADE"))
     ts = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     temperature_c = Column(Numeric(5,2))
     ph = Column(Numeric(4,2))
@@ -62,8 +66,8 @@ class SensorData(Base):
 
 class FeedingLog(Base):
     __tablename__ = "feeding_logs"
-    id = Column(BigInteger, primary_key=True, index=True)
-    aquarium_id = Column(BigInteger, ForeignKey("aquariums.id", ondelete="CASCADE"))
+    id = Column(ID_TYPE, primary_key=True, index=True)
+    aquarium_id = Column(ID_TYPE, ForeignKey("aquariums.id", ondelete="CASCADE"))
     ts = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     mode = Column(String(10), nullable=False)
     volume_grams = Column(Numeric(7,2))
@@ -77,8 +81,8 @@ class FeedingLog(Base):
 
 class Schedule(Base):
     __tablename__ = "schedules"
-    id = Column(BigInteger, primary_key=True, index=True)
-    aquarium_id = Column(BigInteger, ForeignKey("aquariums.id", ondelete="CASCADE"))
+    id = Column(ID_TYPE, primary_key=True, index=True)
+    aquarium_id = Column(ID_TYPE, ForeignKey("aquariums.id", ondelete="CASCADE"))
     name = Column(String(100))
     type = Column(String(20), nullable=False)
     interval_hours = Column(Integer)
@@ -97,8 +101,8 @@ class Schedule(Base):
 
 class Alert(Base):
     __tablename__ = "alerts"
-    id = Column(BigInteger, primary_key=True, index=True)
-    aquarium_id = Column(BigInteger, ForeignKey("aquariums.id", ondelete="CASCADE"))
+    id = Column(ID_TYPE, primary_key=True, index=True)
+    aquarium_id = Column(ID_TYPE, ForeignKey("aquariums.id", ondelete="CASCADE"))
     ts = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     type = Column(String(50))
     message = Column(Text)

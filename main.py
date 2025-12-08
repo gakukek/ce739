@@ -258,7 +258,10 @@ async def list_aquariums(
 @app.put("/aquariums/{aq_id}", response_model=AquariumOut)
 async def update_aquarium(aq_id: int, payload: AquariumCreate, clerk_id: str = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     aq = await assert_owner(db, aq_id, clerk_id)
-    for k, v in payload.dict(exclude_none=True).items():
+    # prevent changing ownership from client payload
+    updates = payload.dict(exclude_none=True)
+    updates.pop("user_id", None)
+    for k, v in updates.items():
         setattr(aq, k, v)
     await db.commit()
     await db.refresh(aq)
@@ -277,9 +280,9 @@ async def delete_aquarium(aq_id: int, clerk_id: str = Depends(get_current_user),
 async def create_sensor_data(
     item: SensorDataCreate,
     db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user)
+    clerk_id: str = Depends(get_current_user)
 ):
-    await assert_owner(db, item.aquarium_id, user_id)
+    await assert_owner(db, item.aquarium_id, clerk_id)
     obj = SensorData(**item.dict())
     db.add(obj)
     await db.commit()
@@ -290,9 +293,9 @@ async def create_sensor_data(
 async def list_sensor_data(
     aquarium_id: int,
     db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user)
+    clerk_id: str = Depends(get_current_user)
 ):
-    await assert_owner(db, aquarium_id, user_id)
+    await assert_owner(db, aquarium_id, clerk_id)
     result = await db.execute(select(SensorData).where(SensorData.aquarium_id == aquarium_id))
     return result.scalars().all()
 
@@ -301,9 +304,9 @@ async def list_sensor_data(
 async def create_feeding_log(
     item: FeedingLogCreate,
     db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user)
+    clerk_id: str = Depends(get_current_user)
 ):
-    await assert_owner(db, item.aquarium_id, user_id)
+    await assert_owner(db, item.aquarium_id, clerk_id)
     obj = FeedingLog(**item.dict())
     db.add(obj)
     await db.commit()
@@ -314,9 +317,9 @@ async def create_feeding_log(
 async def list_feeding_logs(
     aquarium_id: int,
     db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user)
+    clerk_id: str = Depends(get_current_user)
 ):
-    await assert_owner(db, aquarium_id, user_id)
+    await assert_owner(db, aquarium_id, clerk_id)
     result = await db.execute(select(FeedingLog).where(FeedingLog.aquarium_id == aquarium_id))
     return result.scalars().all()
 
@@ -325,9 +328,9 @@ async def list_feeding_logs(
 async def create_schedule(
     item: ScheduleCreate,
     db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user)
+    clerk_id: str = Depends(get_current_user)
 ):
-    await assert_owner(db, item.aquarium_id, user_id)
+    await assert_owner(db, item.aquarium_id, clerk_id)
     obj = Schedule(**item.dict())
     db.add(obj)
     await db.commit()
@@ -338,9 +341,9 @@ async def create_schedule(
 async def list_schedules(
     aquarium_id: int,
     db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user)
+    clerk_id: str = Depends(get_current_user)
 ):
-    await assert_owner(db, aquarium_id, user_id)
+    await assert_owner(db, aquarium_id, clerk_id)
     result = await db.execute(select(Schedule).where(Schedule.aquarium_id == aquarium_id))
     return result.scalars().all()
 
@@ -349,9 +352,9 @@ async def list_schedules(
 async def create_alert(
     item: AlertCreate,
     db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user)
+    clerk_id: str = Depends(get_current_user)
 ):
-    await assert_owner(db, item.aquarium_id, user_id)
+    await assert_owner(db, item.aquarium_id, clerk_id)
     obj = Alert(**item.dict())
     db.add(obj)
     await db.commit()
@@ -362,8 +365,28 @@ async def create_alert(
 async def list_alerts(
     aquarium_id: int,
     db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user)
+    clerk_id: str = Depends(get_current_user)
 ):
-    await assert_owner(db, aquarium_id, user_id)
+    await assert_owner(db, aquarium_id, clerk_id)
     result = await db.execute(select(Alert).where(Alert.aquarium_id == aquarium_id))
     return result.scalars().all()
+
+
+@app.delete("/alerts/{alert_id}")
+async def delete_alert(
+    alert_id: int,
+    db: AsyncSession = Depends(get_db),
+    clerk_id: str = Depends(get_current_user)
+):
+    # Ensure the alert exists
+    result = await db.execute(select(Alert).where(Alert.id == alert_id))
+    alert = result.scalars().first()
+    if not alert:
+        raise HTTPException(404, "Alert not found")
+
+    # Verify caller owns the aquarium associated with this alert
+    await assert_owner(db, alert.aquarium_id, clerk_id)
+
+    await db.delete(alert)
+    await db.commit()
+    return {"ok": True}
