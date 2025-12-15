@@ -119,3 +119,10 @@ class UserUpdate(BaseModel):
     username: Optional[str] = None
     email: Optional[str] = None
 
+
+class DeviceCreateOut(BaseModel):
+    token: str
+
+    class Config:
+        orm_mode = True
+

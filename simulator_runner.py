@@ -53,7 +53,23 @@ class SimulatorRunner:
             if token:
                 headers["Authorization"] = f"Bearer {token}"
 
-            await client.post("/sensor_data", json=sd, headers=headers)
+            # post sensor data
+            resp = await client.post("/sensor_data", json=sd, headers=headers)
+            # If sensor values are dangerous, report an alert to the backend
+            try:
+                temp = sd.get("temperature_c")
+                ph = sd.get("ph")
+                # thresholds can be configured via env vars or token_mapping; fallback to defaults
+                t_thresh = float(os.getenv("SIM_DANGER_TEMP", "28.0"))
+                pH_low = float(os.getenv("SIM_DANGER_PH_LOW", "6.0"))
+                pH_high = float(os.getenv("SIM_DANGER_PH_HIGH", "8.5"))
+                if (temp is not None and temp >= t_thresh) or (ph is not None and (ph <= pH_low or ph >= pH_high)):
+                    # create a danger alert
+                    msg = f"Dangerous reading: temp={temp}, ph={ph}"
+                    alert_payload = {"aquarium_id": aq_id, "type": "DANGER_SENSOR", "message": msg}
+                    await client.post("/alerts", json=alert_payload, headers=headers)
+            except Exception:
+                pass
 
             # poll alerts and handle CMD_FEED
             alerts_r = await client.get("/alerts", params={"aquarium_id": aq_id})
