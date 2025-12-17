@@ -51,41 +51,49 @@ async def run_once():
                 await conn.close()
                 return
 
-        # use a session for normal work
+        # use a session for normal work and keep it open while processing schedules
         async with database.SessionLocal() as db:
             res = await db.execute(select(Schedule).where(Schedule.enabled == True))
             schedules = res.scalars().all()
 
-        for s in schedules:
-            aq_id = s.aquarium_id
-            if s.type == "interval" and s.interval_hours is not None:
-                cutoff = now - datetime.timedelta(hours=float(s.interval_hours))
-                # check recent feeding logs
-                recent_feed = await db.execute(select(FeedingLog).where(FeedingLog.aquarium_id == aq_id).order_by(FeedingLog.ts.desc()).limit(1))
-                last_feed = recent_feed.scalars().first()
-                if not last_feed or last_feed.ts < cutoff:
-                    # ensure no recent feeding log exists after cutoff
-                    recent_feed = await db.execute(select(FeedingLog).where(FeedingLog.aquarium_id == aq_id, FeedingLog.ts > cutoff))
-                    if not recent_feed.scalars().first():
-                        # create FeedingLog directly for scheduled feed (AUTO)
-                        fl = FeedingLog(aquarium_id=aq_id, mode="AUTO", volume_grams=getattr(s, "feed_volume_grams", None) or None, actor="scheduler")
-                        db.add(fl)
-                        await db.commit()
+            for s in schedules:
+                aq_id = s.aquarium_id
+                if s.type == "interval" and s.interval_hours is not None:
+                    cutoff = now - datetime.timedelta(hours=float(s.interval_hours))
+                    # check recent feeding logs
+                    recent_feed = await db.execute(select(FeedingLog).where(FeedingLog.aquarium_id == aq_id).order_by(FeedingLog.ts.desc()).limit(1))
+                    last_feed = recent_feed.scalars().first()
+                    if not last_feed or last_feed.ts < cutoff:
+                        # ensure no recent feeding log exists after cutoff
+                        recent_feed = await db.execute(select(FeedingLog).where(FeedingLog.aquarium_id == aq_id, FeedingLog.ts > cutoff))
+                        if not recent_feed.scalars().first():
+                            # create an ALERT (CMD_FEED) for the device to pick up
+                            msg = f"Scheduled feed: {getattr(s, 'feed_volume_grams', None) or ''}g"
+                            # avoid creating duplicate pending CMD_FEED alerts since cutoff
+                            recent_alert = await db.execute(select(Alert).where(Alert.aquarium_id == aq_id, Alert.type == 'CMD_FEED', Alert.ts > cutoff))
+                            if not recent_alert.scalars().first():
+                                a = Alert(aquarium_id=aq_id, type="CMD_FEED", message=msg)
+                                db.add(a)
+                                await db.commit()
 
-            elif s.type == "daily_times" and s.daily_times:
-                try:
-                    times = json.loads(s.daily_times)
-                except Exception:
-                    times = []
-                now_hm = now.strftime("%H:%M")
-                # exact match - acceptable for tests; in production use a tolerance window
-                if now_hm in times:
-                    today_start = datetime.datetime(now.year, now.month, now.day)
-                    today_feed = await db.execute(select(FeedingLog).where(FeedingLog.aquarium_id == aq_id, FeedingLog.ts >= today_start))
-                    if not today_feed.scalars().first():
-                        fl = FeedingLog(aquarium_id=aq_id, mode="AUTO", volume_grams=getattr(s, "feed_volume_grams", None) or None, actor="scheduler")
-                        db.add(fl)
-                        await db.commit()
+                elif s.type == "daily_times" and s.daily_times:
+                    try:
+                        times = json.loads(s.daily_times)
+                    except Exception:
+                        times = []
+                    now_hm = now.strftime("%H:%M")
+                    # exact match - acceptable for tests; in production use a tolerance window
+                    if now_hm in times:
+                        today_start = datetime.datetime(now.year, now.month, now.day)
+                        today_feed = await db.execute(select(FeedingLog).where(FeedingLog.aquarium_id == aq_id, FeedingLog.ts >= today_start))
+                        if not today_feed.scalars().first():
+                            # avoid creating duplicate CMD_FEED alerts for today
+                            recent_alert = await db.execute(select(Alert).where(Alert.aquarium_id == aq_id, Alert.type == 'CMD_FEED', Alert.ts >= today_start))
+                            if not recent_alert.scalars().first():
+                                msg = f"Scheduled daily feed: {getattr(s, 'feed_volume_grams', None) or ''}g"
+                                a = Alert(aquarium_id=aq_id, type="CMD_FEED", message=msg)
+                                db.add(a)
+                                await db.commit()
     finally:
         # release advisory lock if we acquired it
         try:
