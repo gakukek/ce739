@@ -37,6 +37,10 @@ else:
         max_overflow=10,
         pool_recycle=300,
         pool_pre_ping=True,
+        connect_args={
+            "timeout": 60,  # ✅ Increase from default 10s to 60s
+            "command_timeout": 60,
+        }
     )
 
 SessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)

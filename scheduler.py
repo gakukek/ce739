@@ -26,6 +26,7 @@ import database
 from models import Schedule, Alert, FeedingLog
 from sqlalchemy import text
 import os
+from simulator_runner import SimulatorRunner, create_http_client
 
 # Advisory lock id used to ensure single scheduler runs when multiple instances exist
 ADVISORY_LOCK_ID = 987654321
@@ -113,6 +114,16 @@ async def run_loop(interval_seconds: Optional[float] = 60.0):
             traceback.print_exc()
         await asyncio.sleep(interval_seconds)
 
+async def run_simulator():
+    """Run simulator as background service"""
+    base_url = os.getenv("API_URL", "http://localhost:8000")
+    # For internal simulator, use a service account token or skip user auth
+    # Since simulator runs server-side, it can use device_uid auth directly
+    
+    async with create_http_client(base_url) as client:
+        runner = SimulatorRunner(base_url=base_url, user_auth_token=None)
+        await runner.run_loop(client, interval=10.0)
+
 
 if __name__ == "__main__":
     import argparse
@@ -121,6 +132,7 @@ if __name__ == "__main__":
     parser.add_argument("--once", action="store_true", help="Run one scheduler cycle")
     parser.add_argument("--loop", type=float, default=None, help="Run scheduler loop with interval seconds")
     args = parser.parse_args()
+    asyncio.run(run_simulator())
 
     if args.once:
         asyncio.run(run_once())
