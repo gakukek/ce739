@@ -222,7 +222,7 @@ async def get_local_user(db, clerk_id):
 
 async def assert_owner(db: AsyncSession, aquarium_id: int, clerk_id: str):
     # Allow simulator to bypass ownership
-    if clerk_id == "simulator_user":
+    if clerk_id == "system_simulator":
         aq = await db.get(Aquarium, aquarium_id)
         if not aq:
             raise HTTPException(404, "Aquarium not found")
