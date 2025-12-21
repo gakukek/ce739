@@ -15,6 +15,7 @@ import asyncio
 import random
 from typing import Any
 import os
+from unittest import runner
 
 import httpx
 
@@ -118,8 +119,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     async def main():
-        async with httpx.AsyncClient(base_url=args.url) as client:
+        async with await create_http_client_for_app(base_url=args.url) as client:
             runner = SimulatorRunner(base_url=args.url)
             await runner.run_loop(client, interval=args.interval)
+
 
     asyncio.run(main())

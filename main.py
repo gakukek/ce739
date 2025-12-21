@@ -267,8 +267,6 @@ async def create_aquarium(
         raise HTTPException(400, f"Database error: {str(e)}")
 
 
-# Device token endpoint removed: user requested no DB changes (permissive device mode)
-
 @app.get("/aquariums", response_model=list[AquariumOut])
 async def list_aquariums(
     clerk_id: str = Depends(get_current_user),
@@ -299,59 +297,18 @@ async def delete_aquarium(aq_id: int, clerk_id: str = Depends(get_current_user),
 
 
 # ------------------- SENSOR DATA -------------------
-@app.post("/sensor_data", response_model=SensorDataOut)
+@app.post("/sensor_data")
 async def create_sensor_data(
     item: SensorDataCreate,
+    clerk_id: str = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    authorization: str | None = Header(None),
-    request: Request = None,
 ):
-    # If an Authorization header is provided and matches the aquarium.device_uid, accept it without Clerk auth.
-    # If an Authorization header is provided and matches aquarium.device_uid or the aquarium id string, accept it.
-    res = await db.execute(select(Aquarium).where(Aquarium.id == item.aquarium_id))
-    aq = res.scalars().first()
-    if not aq:
-        raise HTTPException(404, "Aquarium not found")
-
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization.split(" ", 1)[1]
-        # Accept token equal to aquarium.device_uid (if set) or to aquarium id string
-        if (aq.device_uid and token == aq.device_uid) or token == str(aq.id):
-            obj = SensorData(**item.dict())
-            db.add(obj)
-            await db.commit()
-            await db.refresh(obj)
-            return obj
-
-    # If no Authorization header present, accept (per permissive mode requested)
-    if not authorization:
-        obj = SensorData(**item.dict())
-        db.add(obj)
-        await db.commit()
-        await db.refresh(obj)
-        return obj
-
-    # Fallback to clerk user auth. Respect test overrides if present on the app.
-    override = None
-    if request is not None and hasattr(request, "app"):
-        override = request.app.dependency_overrides.get(get_current_user)
-
-    if override:
-        try:
-            clerk_id = override()
-        except TypeError:
-            # fallback: some overrides accept the authorization argument
-            clerk_id = override(authorization)
-        if asyncio.iscoroutine(clerk_id):
-            clerk_id = await clerk_id
-    else:
-        clerk_id = await get_current_user(authorization)
     await assert_owner(db, item.aquarium_id, clerk_id)
     obj = SensorData(**item.dict())
     db.add(obj)
     await db.commit()
-    await db.refresh(obj)
     return obj
+
 
 @app.get("/sensor_data", response_model=list[SensorDataOut])
 async def list_sensor_data(

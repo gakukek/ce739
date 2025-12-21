@@ -11,6 +11,7 @@ CLERK_PUBLISHABLE_KEY = os.getenv(
     "CLERK_PUBLISHABLE_KEY", 
     "pk_test_ZmFjdHVhbC1wbGF0eXB1cy01Ny5jbGVyay5hY2NvdW50cy5kZXYk"
 )
+CLERK_BACKEND_KEY = os.getenv("CLERK_SECRET_KEY")
 
 # Extract the domain from publishable key
 import base64
@@ -87,6 +88,8 @@ async def get_signing_key(token: str) -> str:
         )
 
 async def get_current_user(authorization: str = Header(None)) -> str:
+    if authorization == f"Bearer {CLERK_BACKEND_KEY}":
+        return "system_simulator"
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=401, 
