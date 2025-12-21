@@ -220,19 +220,25 @@ async def get_local_user(db, clerk_id):
     print(f"✅ Found user: id={user.id}, username={user.username}")
     return user
 
-async def assert_owner(db, aq_id, clerk_id):
+async def assert_owner(db: AsyncSession, aquarium_id: int, clerk_id: str):
+    # Allow simulator to bypass ownership
+    if clerk_id == "simulator_user":
+        aq = await db.get(Aquarium, aquarium_id)
+        if not aq:
+            raise HTTPException(404, "Aquarium not found")
+        return aq
+
+    # Normal user flow
     user = await get_local_user(db, clerk_id)
-
-    res = await db.execute(select(Aquarium).where(Aquarium.id == aq_id))
-    aq = res.scalars().first()
-
+    aq = await db.get(Aquarium, aquarium_id)
     if not aq:
         raise HTTPException(404, "Aquarium not found")
 
     if aq.user_id != user.id:
-        raise HTTPException(403, "Not allowed")
+        raise HTTPException(403, "Forbidden")
 
     return aq
+
 
 # ------------- Aquariums -------------
 
