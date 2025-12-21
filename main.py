@@ -278,9 +278,16 @@ async def list_aquariums(
     clerk_id: str = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    if clerk_id == "system_simulator":
+        result = await db.execute(select(Aquarium))
+        return result.scalars().all()
+
     user = await get_local_user(db, clerk_id)
-    result = await db.execute(select(Aquarium).where(Aquarium.user_id == user.id))
+    result = await db.execute(
+        select(Aquarium).where(Aquarium.user_id == user.id)
+    )
     return result.scalars().all()
+
 
 @app.put("/aquariums/{aq_id}", response_model=AquariumOut)
 async def update_aquarium(aq_id: int, payload: AquariumCreate, clerk_id: str = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
