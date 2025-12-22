@@ -438,13 +438,41 @@ async def create_alert(
 @app.get("/alerts", response_model=list[AlertOut])
 async def list_alerts(
     aquarium_id: int,
+    type: str | None = None,  # Add optional type parameter
     db: AsyncSession = Depends(get_db),
     clerk_id: str = Depends(get_current_user)
 ):
     await assert_owner(db, aquarium_id, clerk_id)
-    result = await db.execute(select(Alert).where(Alert.aquarium_id == aquarium_id))
+    
+    # Build query with optional type filter
+    query = select(Alert).where(Alert.aquarium_id == aquarium_id)
+    if type:
+        query = query.where(Alert.type == type)
+    
+    result = await db.execute(query)
     return result.scalars().all()
 
+@app.patch("/alerts/{alert_id}/resolve")
+async def resolve_alert(
+    alert_id: int,
+    db: AsyncSession = Depends(get_db),
+    clerk_id: str = Depends(get_current_user)
+):
+    # Ensure the alert exists
+    result = await db.execute(select(Alert).where(Alert.id == alert_id))
+    alert = result.scalars().first()
+    if not alert:
+        raise HTTPException(404, "Alert not found")
+
+    # Verify caller owns the aquarium associated with this alert
+    await assert_owner(db, alert.aquarium_id, clerk_id)
+
+    # Mark as resolved
+    alert.resolved = True
+    alert.resolved_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(alert)
+    return alert
 
 @app.delete("/alerts/{alert_id}")
 async def delete_alert(
