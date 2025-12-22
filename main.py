@@ -309,6 +309,31 @@ async def delete_aquarium(aq_id: int, clerk_id: str = Depends(get_current_user),
     await db.commit()
     return {"ok": True}
 
+@app.get("/aquariums/{aquarium_id}/schedule-id")
+async def get_schedule_id(
+    aquarium_id: int,
+    db: AsyncSession = Depends(get_db),
+    clerk_id: str = Depends(get_current_user),
+):
+    await assert_owner(db, aquarium_id, clerk_id)
+
+    schedule = await get_schedule_by_aquarium(db, aquarium_id)
+
+    if not schedule:
+        return {"schedule_id": None}
+
+    return {"schedule_id": schedule.id}
+
+async def get_schedule_by_aquarium(
+    db: AsyncSession,
+    aquarium_id: int,
+) -> Schedule | None:
+    result = await db.execute(
+        select(Schedule).where(Schedule.aquarium_id == aquarium_id)
+    )
+    return result.scalars().first()
+
+
 
 # ------------------- SENSOR DATA -------------------
 @app.post("/sensor_data")
@@ -381,6 +406,31 @@ async def list_schedules(
     await assert_owner(db, aquarium_id, clerk_id)
     result = await db.execute(select(Schedule).where(Schedule.aquarium_id == aquarium_id))
     return result.scalars().all()
+
+@app.put("/schedules/{aquarium_id}", response_model=ScheduleOut)
+async def update_schedule(
+    aquarium_id: int,
+    item: ScheduleCreate,
+    db: AsyncSession = Depends(get_db),
+    clerk_id: str = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Schedule).where(Schedule.id == aquarium_id)
+    )
+    schedule = result.scalars().first()
+
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+
+    await assert_owner(db, schedule.aquarium_id, clerk_id)
+
+    for key, value in item.dict().items():
+        setattr(schedule, key, value)
+
+    await db.commit()
+    await db.refresh(schedule)
+    return schedule
+
 
 # ------------------- ALERTS -------------------
 @app.post("/alerts", response_model=AlertOut)
